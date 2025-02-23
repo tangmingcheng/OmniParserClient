@@ -16,7 +16,7 @@ def update_target_icon(model_response):
     """根据传入的 model_response 更新 TARGET_ICON"""
     global TARGET_ICON
     if model_response and 'target' in model_response:
-        TARGET_ICON = model_response['target']
+        TARGET_ICON = model_response['target'].lower()
         print(f"TARGET_ICON 已更新为: {TARGET_ICON}")
     else:
         print("无效的 model_response，无法更新 TARGET_ICON")
