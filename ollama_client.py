@@ -1,4 +1,6 @@
 import subprocess
+import time
+
 import requests
 import json
 import re
@@ -10,6 +12,7 @@ from PIL import Image
 import pyautogui
 import tkinter as tk
 
+
 def query_ollama(prompt):
     """
     向 Ollama 模型发送请求，获取结构化数据。
@@ -18,22 +21,41 @@ def query_ollama(prompt):
     headers = {"Content-Type": "application/json"}
     payload = {
         "model": "deepseek-r1:14b",
-        "prompt": prompt
+        "prompt": prompt,
+        "stream": True
     }
 
 
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
-    response.raise_for_status()  # 如果响应状态码不是 200，会抛出异常
+    response = requests.post(url, headers=headers, data=json.dumps(payload), stream=True)
 
-    # 打印返回的原始响应内容
-    print("Raw Response:", response.text)
+    # 存储响应内容的变量
+    responses = []
 
-    model_result = extract_responses(response.text)
+    if response.status_code == 200:
+        # 逐行处理响应，实时打印
+        for line in response.iter_lines():
+            if line:
+                try:
+                    response_data = json.loads(line)
+                    # 提取 'response' 字段并添加到列表中
+                    response_field = response_data.get("response", "")
+                    responses.append(response_field)
 
-    print("model result:", model_result)
+                    print(response_field, end='', flush=True)
+                except json.JSONDecodeError:
+                    print("JSON解析错误")
+    else:
+        print(f"请求失败，错误码: {response.status_code}")
+
+
+    # 将列表中的元素拼接为一个字符串
+    processed_text = ''.join(responses)
+
+    # 移除掉多余的空格、换行符等
+    processed_text = processed_text.replace(' ', '')
 
     # 从返回结果中提取出目标的JSON结构
-    structured_data = extract_json(model_result)
+    structured_data = extract_json(processed_text)
 
 
     # 尝试解析 JSON
@@ -127,8 +149,12 @@ def capture_screen(image_path):
 
         # 缩放图像
         screenshot = screenshot.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        print(f"已截取当前屏幕图像")
 
-    # 保存截图
+        # 保存截图
+        threading.Thread(target=save_screenshot, args=(screenshot, image_path)).start()
+
+def save_screenshot(screenshot, image_path):
     screenshot.save(image_path)
     print(f"屏幕截图已保存至: {image_path}")
 
@@ -154,7 +180,9 @@ def main():
     }}
     
     另外。你需要知道打开某个程序一般情况下对应的操作类型是双击
-    并且，如果如果是应用程序的名字不要做任何修改
+    并且，牢记，如果是应用程序的名字不要做任何修改，不要擅自加下划线
+    如果目标没有明确的名字，比如浏览器，那就可以自动将目标设定为谷歌浏览器或者微软浏览器的英文名称
+    
     """
 
     # 获取模型返回的结构化数据
@@ -169,12 +197,12 @@ def main():
         image_path = r"D:\WallPaper\test.png"
         capture_screen(image_path)
 
-        # 调用 client.py，并传递 model_response
-        #call_client_script(model_response)
 
+        time.sleep(7)
         # 在新线程中调用 client.py，并传递 model_response
-        client_thread = threading.Thread(target=call_client_script, args=(model_response,))
-        client_thread.start()
+        call_client_script(model_response)
+        #client_thread = threading.Thread(target=call_client_script, args=(model_response,))
+        #client_thread.start()
 
     else:
         print("未提取到有效的结构化数据。")
